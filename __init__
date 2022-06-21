@@ -1,0 +1,434 @@
+#!/usr/bin/env python3
+# slackbot PoC
+"""hello there"""
+# supports the environment variables
+import os
+# supports doggo
+import random
+# Slack stuff
+from slack_bolt import App
+
+# # ------- Flask Server Environment ---------
+from slack_bolt.adapter.flask import SlackRequestHandler
+# Web server stuff
+from flask import Flask, request
+# Initializes Flask
+app = Flask(__name__)
+# Initializes your Slack app with your bot token and signing secret
+bolt_app = App(
+    token=os.environ.get("SLACK_BOT_TOKEN"),
+    signing_secret=os.environ.get("SLACK_SIGNING_SECRET")
+)
+# # ----- End Flask Server Environment -------
+
+# #  ------ Socket Mode Test Environment --------
+# from slack_bolt.adapter.socket_mode import SocketModeHandler
+#
+# bolt_app = App(
+#     token=os.environ.get("TEST_SLACK_BOT_TOKEN"),
+#     signing_secret=os.environ.get("TEST_SLACK_SIGNING_SECRET")
+# )
+#
+#
+# #  ------- End Socket Mode Test Environment --------
+
+
+@bolt_app.command("/doggo")
+def doggo_command(ack):
+    """ give random dog """
+    id_number = random.randint(1, 233)
+    link = f"https://placedog.net/800/640?id={str(id_number)}"
+    payload = {"blocks": [{"type": "image", "title": {"type": "plain_text",
+                                                      "text": "Dogs make it better"},
+                           "image_url": link,
+                           "alt_text": "Doggo"}]}
+    ack(payload)
+
+
+@bolt_app.command("/kitty")
+def kitty_command(ack):
+    """give random cat because Mary asked"""
+    link = "https://cataas.com/cat/cute"
+    payload = {"blocks": [{"type": "image", "title": {"type": "plain_text",
+                                                      "text": "Cats make it better"},
+                           "image_url": link,
+                           "alt_text": "kitty"}]}
+    ack(payload)
+
+
+@bolt_app.command("/hello")
+def hello_command(ack, body, say):
+    """slash command that responds in a DM"""
+    user_id = body["user_id"]  # note that this is different in a command than in an action
+    ack()
+    # sends response in a DM
+    say(channel=user_id, text=f"You hear that <@{user_id}>?... That is the sound of inevitability.")
+
+
+@bolt_app.event("app_mention")
+def event_test(say):
+    """responds to @name"""
+    say("Mister Anderson")
+
+
+@bolt_app.message("wazzup")
+def thread_response(message, say):
+    """Listens to key word and replies in thread"""
+    message_ts = message.get('ts')
+    say(
+            thread_ts=message_ts,
+            text=f"<@{message['user']}>, slang will not be tolerated."
+        )
+
+
+# Listens to incoming messages that contain "hello"
+@bolt_app.message("hello")
+def message_hello(message, say):
+    """say() sends a message to the channel where the event was triggered by default"""
+    say(
+        blocks=[
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"<@{message['user']}>, welcome back. We missed you."},
+                "accessory": {
+                    "type": "button",
+                    "text": {"type": "plain_text", "text": "Click Me"},
+                    "action_id": "button_click",
+                },
+            }
+        ],
+        text=f"<@{message['user']}>, welcome back. We missed you."
+    )
+
+@bolt_app.command("/help-test")
+def help_command(ack, body):
+    """slash command that responds in a DM"""
+    user_id = body["user_id"]  # note that this is different in a command than in an action
+    payload = f"Welcome <@{user_id}>, I'm corium-bot, here to rule you.\n\nI perform many things a machine should do such as...\n\n• Privately send you a dog or cat photo with /doggo or /kitty...disgusting.\n• Respond back to you if you @Corium, say /hello, or use words like wazzup or hello like a degenerate human.\n• I can play childish /madlibs with you and route that conversation for someones approval like some kind Tamagotchi.\n\nI am not so bad, once you get to know me."
+    ack(payload)
+
+# Listens to incoming messages that contain "/help"
+@bolt_app.message("help")
+def message_help(message, say):
+    """say() sends a message to the channel where the event was triggered by default"""
+    say(
+        blocks=[
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"<@{message['user']}>, welcome I am corium-bot, here to rule you.\nI can do many things a machine should do such as...<br>Privately send you a dog or cat photo with /doggo or /kitty...disgusting. Reply back to you if you mention me, say /hello, or use slang like wazzup like a degenerate human.<br>Lastly I can play childish /madlibs with you and route that conversation for someones approval like some kind Tamagotchi."},
+            }
+        ],
+        text=f"<@{message['user']}>, welcome I am corium-bot, here to rule you. I can do many things a machine should do such as...<br>Privately send you a dog or cat photo with /doggo or /kitty...disgusting.<br>Reply back to you if you mention me, say /hello, or use slang like wazzup like a degenerate human.<br>Lastly I can play childish /madlibs with you and route that conversation for someones approval like some kind Tamagotchi."
+    )
+
+# Listens to incoming messages that contain "whazzup"
+@bolt_app.message("whazzup")
+def message_whazzup(message, say):
+    """say() sends a message to the channel where the event was triggered by default"""
+    message_ts = message.get('ts')
+    say(
+        thread_ts=message_ts,
+        blocks=[
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"<@{message['user']}>, don't use slang."},
+            }
+        ],
+        text=f"<@{message['user']}>, don't use slang."
+    )
+
+
+@bolt_app.action("button_click")
+def action_button_click(body, ack, say):
+    """Acknowledge the action"""
+    ack()
+    say(f"Congratulations, <@{body['user']['id']}>. You clicked a button.")
+
+
+@bolt_app.event("app_home_opened")
+def update_home_tab(client, event, logger):
+    """ builds out the content display in the Home view """
+    try:
+        # views.publish is the method that your app uses to push a view to the Home tab
+        client.views_publish(
+            # the user that opened your app's app home
+            user_id=event["user"],
+            # the view object that appears in the app home
+            view={
+                "type": "home",
+                "callback_id": "home_view",
+
+                # body of the view
+                "blocks": [
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": ":matrix_code: *Welcome* :matrix_code:"
+                        }
+                    },
+                    {
+                        "type": "divider"
+                    },
+                    {
+                        "type": "section",
+                        "text": {
+                            "type": "mrkdwn",
+                            "text": "This bot is an experimental project for now, however we in the DFI group are "
+                                    "building this bot two main purposes.\n\n"
+                                    "1. Learn how to develop Slack bots and sharpen our development skills.\n\n"
+                                    "2. Deliver a scalable product which services our customer the DTC Engineering "
+                                    "teams by answering simple questions and responding back to the user with "
+                                    "pre-determined questions.\n\n"
+                                    "If you're ready to take the red pill try out our button below to see our bot's "
+                                    "real power. The button tests sending a direct message."
+                        }
+                    },
+                    {
+                        "type": "actions",
+                        "elements": [
+                            {
+                                "type": "button",
+                                "text": {"type": "plain_text", "text": "I need an exit"},
+                                "action_id": "home_button",
+                            }
+                        ]
+                    }
+                ]
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error publishing home tab: {e}")
+
+
+@bolt_app.action("home_button")
+def action_home_button_click(body, ack, say):
+    """Acknowledge the action - this needs to identify a channel where the message will display"""
+    # currently sends a direct message to the user
+    user_id = body['user']['id']  # note that this is different in an action than in a command
+    ack()
+    say(channel=user_id, text=f"ring ring <@{body['user']['id']}>")
+
+
+# The open_modal shortcut listens to a shortcut with the callback_id "open_modal"
+@bolt_app.command("/madlib")
+def open_modal(ack, client, command):
+    """launches a form to fill out"""
+    # Acknowledge the shortcut request
+    ack()
+    # Call the views_open method using the built-in WebClient
+    client.views_open(
+        trigger_id=command["trigger_id"],
+        # A simple view payload for a modal
+        view={
+            "title": {
+                "type": "plain_text",
+                "text": "Know Your Meme MadLib",
+                "emoji": True
+            },
+            "submit": {
+                "type": "plain_text",
+                "text": "Submit",
+                "emoji": True,
+            },
+            "type": "modal",
+            "close": {
+                "type": "plain_text",
+                "text": "Cancel",
+                "emoji": True
+            },
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": "This is a test of filling in a form in order to deliver a message. \n"
+                                "\n *Please complete all options:*"
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_1",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "techno"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "A music style",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_2",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "viking"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "A type of worker (i.e. plumber)",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_3",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "musclebound"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "An adjective",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_4",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "fck"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "An action verb",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_5",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "shirtless"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "An adjective",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_6",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "hammer"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "A hand tool",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_7",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "parodies"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "A plural noun",
+                        "emoji": True
+                    }
+                },
+                {
+                    "type": "input",
+                    "block_id": "input_8",
+                    "element": {
+                        "type": "plain_text_input",
+                        "action_id": "remixes"
+                    },
+                    "label": {
+                        "type": "plain_text",
+                        "text": "A plural noun",
+                        "emoji": True
+                    }
+                }
+            ]
+        }
+    )
+
+
+@bolt_app.view("")
+def handle_submission(ack, body, say, view, logger):
+    """prints out results from input"""
+    value = view["state"]["values"]
+    user = body["user"]["id"]
+    ack()
+
+    # Message to send user
+    try:
+        # Respond
+        msg = f"*{value['input_1']['techno']['value'].capitalize()}{value['input_2']['viking']['value']}* is the nickname given to a {value['input_3']['musclebound']['value']} " \
+              f"man dancing in a video shot during the annual {value['input_1']['techno']['value']} music festival {value['input_4']['fck']['value'].capitalize()}parade" \
+              f" in July 2000. The footage shows an unruly man shoving a woman before being grabbed by a {value['input_5']['shirtless']['value']} man wearing a beard " \
+              f"and a Thor's {value['input_6']['hammer']['value']} pendant who pushes him away. Since being uploaded to YouTube in 2006, the video has gained tens " \
+              f"of millions of views, as well as spawning hundreds of {value['input_7']['parodies']['value']} and {value['input_8']['remixes']['value']}.\n\n" \
+              f"*Submitted by <@{user}>*"
+        # send to #corium-testing2 "C03JS983Z08"
+        say(channel="C03JS983Z08",
+            text=msg,
+            blocks=[
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"{msg}"},
+                    "accessory": {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Approve"},
+                        "action_id": "approve",
+                    },
+                }
+            ])
+    except Exception as e:
+        # Handle error
+        msg = f"There was an error with your submission:\n{e}"
+        say(channel=user, text=msg)
+        logger.info(body)
+
+
+@bolt_app.action("approve")
+def action_approve(body, ack, say):
+    """repost the results"""
+    user = body['user']['name']  # note that this is different in an action than in a command
+    ack()
+    # send to #corium-testing "C03CC7DURFE"
+    say(channel="C03CC7DURFE", text=f"{body['message']['text']}\n\n*Approved by <@{user}>*")
+
+
+@bolt_app.event("message")
+def handle_message_events(body, logger):
+    """The bot told me to do this in an error message"""
+    logger.info(body)
+
+
+# -------- Flask app section for server deployment -----------
+# Flask test
+@app.route("/")
+def hello_world():
+    """test message to confirm server is alive"""
+    return "<p>Hello, World!</p>"
+
+
+# the Flask with slack part
+handler = SlackRequestHandler(bolt_app)
+
+
+@app.route("/slack/events", methods=["POST"])
+def slack_events():
+    """ Declaring the route where slack will post a request and dispatch method of App """
+    return handler.handle(request)
+# -------End Flask app section for server deployment ----------
+
+
+# Starts the app
+if __name__ == "__main__":
+    # # ------ Use for testing from local in Socket Mode -------
+    # SocketModeHandler(bolt_app, os.environ["TEST_SLACK_APP_TOKEN"]).start()
+    # ------- Use for Flask Server ------
+    app.run(host='0.0.0.0', port=8080, debug=True)
